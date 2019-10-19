@@ -1,3 +1,4 @@
+[![Build Status](https://dev.azure.com/yusuzu201909/PipelineTutorial/_apis/build/status/YuhsukeSuzuki.pipelines-java?branchName=master)](https://dev.azure.com/yusuzu201909/PipelineTutorial/_build/latest?definitionId=3&branchName=master)
 
 # Contributing
 
