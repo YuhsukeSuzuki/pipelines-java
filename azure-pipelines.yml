@@ -6,33 +6,60 @@
 trigger:
 - master
 
-strategy:
-  matrix:
-    jdk10_linux:
-      imageName: "ubuntu-16.04"
-      jdk_version: "1.10"
-    jdk11_windows:
-      imageName: "vs2017-win2016"
-      jdk_version: "1.11"
-  maxParallel: 2
+variables:
+  imageName: "ubuntu-latest"
+  jdk_version: "1.11"
+  MAVEN_CHACHE_FOLDER: $(Pipeline.Workspace)/.m2/repository
 
-pool:
-  vmImage: $(imageName)
 
-steps:
-- task: Maven@3
-  inputs:
-    mavenPomFile: "pom.xml"
-    mavenOptions: "-Xmx3072m"
-    javaHomeOption: "JDKVersion"
-    jdkVersionOption: $(jdk_version)
-    jdkArchitectureOption: "x64"
-    publishJUnitResults: true
-    testResultsFiles: "**/TEST-*.xml"
-    goals: "package"
-- task: PublishCodeCoverageResults@1
-  inputs:
-    codeCoverageTool: "JaCoCo"
-    summaryFileLocation: "$(System.DefaultWorkingDirectory)/**/site/jacoco/jacoco.xml"
-    reportDirectory: "$(System.DefaultWorkingDirectory)/**/site/jacoco"
-    failIfCoverageEmpty: true
+stages:
+- stage: Build
+  displayName: Build Stage
+  jobs:
+  - job:
+    displayName: Maven Package and Publish Artifacts
+    pool:
+      vmImage: $(imageName)
+    steps:
+    - task: Cache@2
+      inputs:
+        key: '''maven | "(Agent.OS)" | **/pom.xml'
+        path: '$(MAVEN_CACHE_FOLDER)'
+        restoreKeys: |
+          maven | "$(Agent.OS)"
+          maven
+    - task: Maven@3
+      inputs:
+        mavenPomFile: "pom.xml"
+        mavenOptions: "-Xmx3072m"
+        options: "-Dmaven.repo.local=$(MAVEN_CACHE_FOLDER)"
+
+    - publish: target
+      artifact: webapp
+      displayName: Publish Artifacts
+
+- stage: Deploy
+  displayName: Deploy stage
+  jobs:
+  - job: DeployWebApp
+    displayName: Deploy Web App
+    pool:
+      vmImage: $(imageName)
+    steps:
+    - checkout: none
+    - download: current
+      artifact: webapp
+
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: '$(Pipeline.Workspace)/webapp/'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Pipeline.Workspace)/$(Build.BuildId).zip'
+
+    - task: AzureWebApp@1
+      inputs:
+        azureSubscription: 'Azure Internal Consumption(b43a5236-bbcd-474c-acb4-97b672576e3b)'
+        appType: 'webAppLinux'
+        appName: 'yusuzulinuxwebapp'
+        package: '$(Pipeline.WorkSpace)/*.zip'
